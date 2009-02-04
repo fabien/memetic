@@ -1,0 +1,112 @@
+file "couchdb" => [] do
+  sh 'git clone git://github.com/halorgium/couchdb.git'
+end
+
+desc "Update to the latest version of git://github.com/halorgium/couchdb.git"
+task :git_update do
+  Dir.chdir('couchdb')
+  begin
+    sh 'git pull'
+  ensure
+    Dir.chdir('..')
+  end
+end
+
+desc "Clean up as though this were a fresh distribution"
+task :dist_clean => [ :clean ] do
+  sh 'rm -rf couchdb'
+end
+
+desc "Start from scratch"
+task :clean do
+  sh 'rm -rf BUILD pkg'
+end
+
+directory "BUILD"
+
+root = `( cd .. ; pwd )`.split[0]
+icu = "#{root}/icu/BUILD"
+erlang = "#{root}/erlang/BUILD"
+spidermonkey = "#{root}/spidermonkey/BUILD"
+
+env = "export ERLANG_ROOT='#{erlang}' ; "
+env << "PATH=#{erlang}/bin:#{icu}/bin:/usr/bin:/bin:/usr/sbin:/sbin ; "
+if RUBY_PLATFORM =~ /linux/
+  env << "export LD_LIBRARY_PATH='#{icu}/lib:#{spidermonkey}/lib' ; "
+elsif RUBY_PLATFORM =~ /darwin/
+  env << "export DYLD_LIBRARY_PATH='#{icu}/lib:#{spidermonkey}/lib' ; "
+end
+
+prefix = Dir.getwd + "/BUILD"
+desc "Build CouchDB"
+task :build => [ :configure, :make ] do |t|
+end
+
+desc "Configure CouchDB"
+task :configure => [ "BUILD", "couchdb" ] do |t|
+  Dir.chdir('couchdb')
+  begin
+    sh "#{env} ./bootstrap"
+    sh "#{env} ./configure --prefix=#{prefix} --with-js-include=#{spidermonkey}/include/js --with-js-lib=#{spidermonkey}/lib --with-erlang=#{erlang}/lib/erlang/usr/include"
+  ensure
+    Dir.chdir('..')
+  end
+end
+
+desc "Build CouchDB"
+task :make => [ "BUILD" ] do |t|
+  Dir.chdir('couchdb')
+  begin
+    sh "#{env} make"
+    sh "#{env} make install"
+  ensure
+    Dir.chdir('..')
+  end
+  
+  sh 'rm -rf BUILD/Library BUILD/etc/logrotate.d'
+  
+  [ 'bin/couchdb', 'bin/couchjs', 'etc/couchdb/default.ini'].each do |f|
+    str = IO.read("#{prefix}/#{f}")
+    str.gsub!(prefix, ".")
+    str.gsub!("`#{icu}/bin/icu-config --invoke`", "")
+    str.gsub!("#{erlang}/bin/", "")
+    File.open("#{prefix}/#{f}", "w") do |io|
+      io.write(str)
+    end
+  end
+end
+
+desc "Run in-situ CouchDB"
+task :run do
+  sh "#{env} ERLANG_ROOT=#{erlang} ; ( cd #{prefix} ; bin/couchdb )"
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic-couchdb'
+  s.version      = "0.8.#{Time.new.strftime('%Y%m%d')}"
+  s.summary      = 'Memetic packaging of Couchdb'
+  s.platform     = Gem::Platform::CURRENT
+  s.authors      = ["Antony Blakey", "http://couchdb.org"]
+  s.files        = FileList["Rakefile", "{BUILD,lib}/**/*"]
+  s.require_path = "lib"
+  # I'm going to presume that pcre versioning is rational
+  s.add_dependency("memetic", "~> 1.0") 
+  s.add_dependency("memetic-erlang", "~> 5.6") 
+  s.add_dependency("memetic-spidermonkey", ">= 1.7", "< 1.8") 
+  s.add_dependency("memetic-icu", "~> 4.0") 
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end

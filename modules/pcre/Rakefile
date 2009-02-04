@@ -1,0 +1,60 @@
+raise "I can't handle this platform: #{RUBY_PLATFORM}" unless RUBY_PLATFORM =~ /darwin|linux/
+  
+
+file "pcre-7.8.tar.gz" => [] do
+  sh 'curl -O ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-7.8.tar.gz'
+end
+
+file "pcre-7.8" => [ "pcre-7.8.tar.gz" ] do
+  sh 'tar zxf pcre-7.8.tar.gz'
+end
+  
+desc "Clean everything"
+task :clean do
+  sh 'rm -rf pcre-7.8 BUILD pkg'
+end
+
+directory "BUILD"
+
+desc "Build PCRE"
+task :build => [ "pcre-7.8", "BUILD" ] do
+  env = "PATH=/usr/bin:/bin:/usr/sbin:/sbin ; "
+  if RUBY_PLATFORM =~ /darwin/
+    env << "DYLD_LIBRARY_PATH='' ; "
+  end
+  prefix = Dir.getwd + "/BUILD"
+  Dir.chdir("pcre-7.8")
+  begin
+    sh "#{env} ./configure --prefix=#{prefix} --enable-unicode-properties"
+    sh "#{env} make"
+    sh "#{env} make install"
+  ensure
+    Dir.chdir('..')
+  end
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic-pcre'
+  s.version      = '7.8.0'
+  s.summary      = 'Memetic packaging of the PCRE library'
+  s.platform     = Gem::Platform::CURRENT
+  s.authors      = ["Antony Blakey", "http://www.pcre.org"]
+  s.files        = FileList["Rakefile", "{BUILD,lib}/**/*"]
+  s.require_path = "lib"
+  s.add_dependency("memetic", "~> 1.0") 
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end

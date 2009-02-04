@@ -1,0 +1,80 @@
+raise "I can't handle this platform: #{RUBY_PLATFORM}" unless RUBY_PLATFORM =~ /darwin|linux/
+
+
+file "otp_src_R12B-5.tar.gz" => [] do
+  sh 'curl -O http://www.erlang.org/download/otp_src_R12B-5.tar.gz'
+end
+
+file "otp_src_R12B-5_OTP-7738.patch" => [] do
+  sh 'curl -O http://www.erlang.org/download/patches/otp_src_R12B-5_OTP-7738.patch'
+end
+
+file "otp_src_R12B-5" => [ "otp_src_R12B-5.tar.gz", "otp_src_R12B-5_OTP-7738.patch" ] do |t|
+  sh "tar zxf otp_src_R12B-5.tar.gz"
+  sh "patch -ZNp0 < otp_src_R12B-5_OTP-7738.patch"
+end
+  
+desc "Clean up as though this were a fresh distribution"
+task :dist_clean => [ :clean ] do
+  sh 'rm otp_src_R12B-5.tar.gz otp_src_R12B-5_OTP-7738.patch'
+end
+
+desc "Clean everything"
+task :clean do
+  sh 'rm -rf otp_src_R12B-5 BUILD pkg'
+end
+
+directory "BUILD"
+
+desc "Build Erlang"
+task :build => [ "otp_src_R12B-5", "BUILD" ] do |t|
+  env = "PATH=/usr/bin:/bin:/usr/sbin:/sbin ; "
+  if RUBY_PLATFORM =~ /darwin/
+    env << "DYLD_LIBRARY_PATH='' ; "
+  end
+  prefix = Dir.getwd + "/BUILD"
+  Dir.chdir("otp_src_R12B-5")
+  begin
+    sh "#{env} ./configure --prefix=#{prefix}"
+    sh "#{env} make"
+    sh "#{env} make install"    
+  ensure
+    Dir.chdir('..')
+  end
+
+  # Now patch the built result to enable binary paths to be controlled by an environment variable
+  [ 'bin/erl', 'bin/start', 'erts-5.6.5/bin/erl', 'erts-5.6.5/bin/start', 'releases/RELEASES'].each do |f|
+    str = IO.read("BUILD/lib/erlang/#{f}")
+    str.gsub!(prefix, "$ERLANG_ROOT")
+    File.open("BUILD/lib/erlang/#{f}", "w") do |io|
+      io.write(str)
+    end
+  end  
+
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic-erlang'
+  s.version      = '5.6.5'
+  s.summary      = 'Memetic packaging of Erlang'
+  s.platform     = Gem::Platform::CURRENT
+  s.authors      = ["Antony Blakey", "http://www.erlang.org/"]
+  s.files        = FileList["Rakefile", "lib/**/*", "BUILD/lib/**/*"]
+  s.require_path = "lib"
+  s.add_dependency("memetic", "~> 1.0") 
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end

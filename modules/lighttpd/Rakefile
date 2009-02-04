@@ -1,0 +1,69 @@
+raise "I can't handle this platform: #{RUBY_PLATFORM}" unless RUBY_PLATFORM =~ /darwin|linux/
+
+
+file "lighttpd-1.4.20.tar.gz" => [] do
+  sh 'curl -O http://www.lighttpd.net/download/lighttpd-1.4.20.tar.gz'
+end
+
+file "lighttpd-1.4.20" => [ "lighttpd-1.4.20.tar.gz" ] do |t|
+  sh 'tar zxf lighttpd-1.4.20.tar.gz'
+end
+  
+desc "Clean up as though this were a fresh distribution"
+task :dist_clean => [ :clean ] do
+  sh 'rm js-1.7.0.tar.gz'
+end
+
+desc "Clean everything"
+task :clean do |t|
+  sh 'rm -rf lighttpd-1.4.20 BUILD pkg'
+end
+
+directory "BUILD"
+
+desc "Build Lighttpd"
+task :build => [ "lighttpd-1.4.20", "BUILD", "../pcre/BUILD/bin" ] do |t|
+  env = "PATH=#{Dir.getwd}/../pcre/BUILD/bin:/usr/bin:/bin:/usr/sbin:/sbin ; "
+  if RUBY_PLATFORM =~ /linux/
+    env << "LD_LIBRARY_PATH='../pcre/BUILD/lib' ; "
+  elsif RUBY_PLATFORM =~ /darwin/
+    env << "DYLD_LIBRARY_PATH='../pcre/BUILD/lib' ; "
+  end
+  prefix = Dir.getwd + "/BUILD"
+  Dir.chdir('lighttpd-1.4.20')
+  begin
+    sh "#{env} ./configure --prefix=#{prefix} --with-openssl"
+    sh "#{env} make"
+    sh "#{env} make install"
+  ensure
+    Dir.chdir('..')
+  end
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic-lighttd'
+  s.version      = '1.4.20'
+  s.summary      = 'Memetic packaging of the Lighttpd'
+  s.platform     = Gem::Platform::CURRENT
+  s.authors      = ["Antony Blakey", "http://www.lighttpd.net"]
+  s.files        = FileList["Rakefile", "{BUILD,lib}/**/*"]
+  s.require_path = "lib"
+  # I'm going to presume that pcre versioning is rational
+  s.add_dependency("memetic", "~> 1.0") 
+  s.add_dependency("memetic-pcre", "~> 7.8") 
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end

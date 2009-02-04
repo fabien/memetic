@@ -1,0 +1,70 @@
+raise "I can't handle this platform: #{RUBY_PLATFORM}" unless RUBY_PLATFORM =~ /darwin|linux/
+
+
+file "icu4c-4_0_1-src.tgz" => [] do
+  sh 'curl -O http://download.icu-project.org/files/icu4c/4.0.1/icu4c-4_0_1-src.tgz'
+end
+
+file "icu" => [ "icu4c-4_0_1-src.tgz" ] do |t|
+  sh 'tar zxf icu4c-4_0_1-src.tgz'
+end
+  
+desc "Clean up as though this were a fresh distribution"
+task :dist_clean => [ :clean ] do
+  sh 'rm icu4c-4_0_1-src.tgz'
+end
+
+desc "Clean everything"
+task :clean do
+  sh 'rm -rf icu BUILD pkg'
+end
+
+directory "BUILD"
+
+desc "Build ICU"
+task :build => [ "icu", "BUILD" ] do |t|
+  env = "PATH=/usr/bin:/bin:/usr/sbin:/sbin ; "
+  if RUBY_PLATFORM =~ /darwin/
+    env << "DYLD_LIBRARY_PATH='' ; "
+  end
+  prefix = Dir.getwd + "/BUILD"
+  Dir.chdir('icu/source')
+  begin
+    sh "#{env} ./configure --prefix=#{prefix} --disable-64bit-libs"
+    if RUBY_PLATFORM =~ /linux/
+      sh "#{env} make"
+      sh "#{env} make install"
+    elsif RUBY_PLATFORM =~ /darwin/
+      sh "#{env} gnumake"
+      sh "#{env} gnumake install"
+    end
+  ensure
+    Dir.chdir('../..')
+  end
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic-icu'
+  s.version      = '4.0.1'
+  s.summary      = 'Memetic packaging of the ICU4C library'
+  s.platform     = Gem::Platform::CURRENT
+  s.authors      = ["Antony Blakey", "http://icu-project.org/"]
+  s.files        = FileList["Rakefile", "{BUILD,lib}/**/*"]
+  s.require_path = "lib"
+  s.add_dependency("memetic", "~> 1.0") 
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end

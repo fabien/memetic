@@ -1,0 +1,34 @@
+desc "Clean up as though this were a fresh distribution"
+task :dist_clean => [ :clean ] do
+end
+
+desc "Clean everything"
+task :clean do
+  sh 'rm pkg'
+end
+
+require 'rake/gempackagetask'
+
+gem_spec = Gem::Specification.new do |s|
+  s.name         = 'memetic'
+  s.version      = '1.0.0'
+  s.summary      = 'Memetic'
+  s.platform     = Gem::Platform::RUBY
+  s.authors      = ["Antony Blakey"]
+  s.files        = FileList["Rakefile", "{lib}/**/*"]
+  s.require_path = "lib"
+  s.autorequire  = "memetic"
+end
+
+desc "Create the gem"
+Rake::GemPackageTask.new(gem_spec) do |pkg|
+  pkg.need_zip = false
+  pkg.need_tar = false
+end
+
+directory "../../GEM_SERVER/gems/"
+
+desc "Build the gem, move to ../../GEM_SERVER/gems/"
+task :default => [ :gem, "../../GEM_SERVER/gems/"] do
+  sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
+end
