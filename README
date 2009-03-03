@@ -1,14 +1,20 @@
-This project creates a number of binary rubygems that encapsulate CouchDB. The gems are platform specific, and don't require native compilation when installed.
+This project creates a number of binary rubygems that encapsulate CouchDB. The gems are
+platform specific, and don't require native compilation when installed.
 
 Once you have installed the gems you can create/start/stop an instance of CouchDB like this:
 
 require 'rubygems'
 require "memetic-couchdb"
 
-db = Memetic::CouchDB.new("#{Dir.pwd}/development-db")
-db.add_external("search", "ruby #{Dir.pwd}/search/external.rb")
-db.add_erlang_path("#{Dir.pwd}/search/")
-puts db.start
+DB = Memetic::CouchDB.new("#{Dir.pwd}/development-db")
+DB.add_external("search", "ruby #{Dir.pwd}/search/external.rb")
+DB.add_erlang_path("#{Dir.pwd}/search/")
+DB.add_configuration("log", "level", "debug")
+# DB.add_configuration("httpd", "port", "5985")
+puts DB.start
 puts 'Hit enter to stop'
 gets
-puts db.stop
+puts DB.stop
+
+Alternatively, you could have different scripts to do each action sharing a common DB setup,
+or you might embed the entire control process without another application.
