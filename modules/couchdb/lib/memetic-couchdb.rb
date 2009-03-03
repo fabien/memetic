@@ -18,6 +18,19 @@ module Memetic
     # TODO: set a port to enable multiple concurrent instances
     def initialize(local_directory)
       @local_directory = local_directory
+      @externals = {}
+      @erlang_path = []
+    end
+    
+    def add_external(name, path)
+      @externals[name] = path
+    end
+    
+    def add_erlang_path(path)
+      @erlang_path << path
+    end
+    
+    def start
       Dir.mkdir(@local_directory) unless File.exists?(@local_directory)
 
       @log_directory = "#{@local_directory}/log"
@@ -29,13 +42,20 @@ module Memetic
       File.open("#{@local_directory}/configuration.ini", "w") do |f|
         f << configuration()
       end
-    end
-    
-    def start
+      
+      puts(IO.read("#{@local_directory}/configuration.ini"))
+
       env = Environment.new
       CouchDB.configure_environment(env)
       cmd = env.as_command_prefix
       cmd << "( cd '#{DIRECTORY}' ; "
+      
+      unless @erlang_path.empty?
+        cmd << "ERL_AFLAGS='-pa"
+        @erlang_path.each {|x| cmd << " \"#{x}\"" }
+        cmd << "' "
+      end
+      
       cmd << "./bin/couchdb -b "
       cmd << "-o '#{@log_directory}/couchdb.stdout' "
       cmd << "-e '#{@log_directory}/couchdb.stderr' "
@@ -43,7 +63,10 @@ module Memetic
       cmd << "-c './etc/couchdb/default.ini' "
       cmd << "-c '#{@local_directory}/configuration.ini' "
       cmd << " )"
-      s = ""
+
+      puts(cmd)
+      puts
+
       IO.popen(cmd) do |p|
         s = p.gets
         s.chomp if s
@@ -69,7 +92,7 @@ module Memetic
     end
 
     def configuration
-      return <<END_OF_STRING
+      config = <<END_OF_STRING
 [couchdb]
 database_dir = #{@data_directory}
 
@@ -77,6 +100,20 @@ database_dir = #{@data_directory}
 file = #{@log_directory}/couch.log
 level = debug
 END_OF_STRING
+  
+      config << "\n[external]\n"
+      @externals.each do |k,v|
+        config << "#{k} = #{v}\n"
+      end
+
+      config << "\n[httpd_db_handlers]\n"
+      @externals.each do |k,v|
+        config << "_#{k} = {couch_httpd_external, handle_external_req, <<\"#{k}\">>}\n"
+      end
+
+      config << "\n"
+      
+      config
     end
 
   end
