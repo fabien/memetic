@@ -25,7 +25,6 @@ module Memetic
       
       add_configuration("couchdb", "database_dir", @data_directory)
       add_configuration("log", "file", "#{@log_directory}/couch.log")
-      add_configuration("log", "level", "debug")
     end
     
     def add_configuration(section, name, value)
