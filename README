@@ -1,0 +1,14 @@
+This project creates a number of binary rubygems that encapsulate CouchDB. The gems are platform specific, and don't require native compilation when installed.
+
+Once you have installed the gems you can create/start/stop an instance of CouchDB like this:
+
+require 'rubygems'
+require "memetic-couchdb"
+
+db = Memetic::CouchDB.new("#{Dir.pwd}/development-db")
+db.add_external("search", "ruby #{Dir.pwd}/search/external.rb")
+db.add_erlang_path("#{Dir.pwd}/search/")
+puts db.start
+puts 'Hit enter to stop'
+gets
+puts db.stop
