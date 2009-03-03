@@ -15,15 +15,27 @@ module Memetic
       ICU.configure_environment(env)
     end
       
-    # TODO: set a port to enable multiple concurrent instances
     def initialize(local_directory)
       @local_directory = local_directory
-      @externals = {}
+      @log_directory = "#{@local_directory}/log"
+      @data_directory = "#{@local_directory}/data"
+
+      @configuration = {}
       @erlang_path = []
+      
+      add_configuration("couchdb", "database_dir", @data_directory)
+      add_configuration("log", "file", "#{@log_directory}/couch.log")
+      add_configuration("log", "level", "debug")
+    end
+    
+    def add_configuration(section, name, value)
+      @configuration[section] ||= {}
+      @configuration[section][name] = value
     end
     
     def add_external(name, path)
-      @externals[name] = path
+      add_configuration("external", name, path)
+      add_configuration("httpd_db_handlers", "_#{name}", "{couch_httpd_external, handle_external_req, <<\"#{name}\">>}")
     end
     
     def add_erlang_path(path)
@@ -32,45 +44,23 @@ module Memetic
     
     def start
       Dir.mkdir(@local_directory) unless File.exists?(@local_directory)
-
-      @log_directory = "#{@local_directory}/log"
       Dir.mkdir(@log_directory) unless File.exists?(@log_directory)
-
-      @data_directory = "#{@local_directory}/data"
       Dir.mkdir(@data_directory) unless File.exists?(@data_directory)
 
       File.open("#{@local_directory}/configuration.ini", "w") do |f|
         f << configuration()
       end
-      
-      puts(IO.read("#{@local_directory}/configuration.ini"))
 
-      env = Environment.new
-      CouchDB.configure_environment(env)
-      cmd = env.as_command_prefix
-      cmd << "( cd '#{DIRECTORY}' ; "
-      
-      unless @erlang_path.empty?
-        cmd << "ERL_AFLAGS='-pa"
-        @erlang_path.each {|x| cmd << " \"#{x}\"" }
-        cmd << "' "
-      end
-      
-      cmd << "./bin/couchdb -b "
-      cmd << "-o '#{@log_directory}/couchdb.stdout' "
-      cmd << "-e '#{@log_directory}/couchdb.stderr' "
-      cmd << "-p '#{@local_directory}/pid' "
-      cmd << "-c './etc/couchdb/default.ini' "
-      cmd << "-c '#{@local_directory}/configuration.ini' "
-      cmd << " )"
-
-      puts(cmd)
-      puts
-
-      IO.popen(cmd) do |p|
+      IO.popen(command_line()) do |p|
         s = p.gets
         s.chomp if s
       end
+    end
+    
+    def show_config
+      puts configuration()
+      puts command_line()
+      puts
     end
     
     def status
@@ -90,29 +80,40 @@ module Memetic
         s.chomp if s
       end
     end
+    
+    def command_line
+      env = Environment.new
+      CouchDB.configure_environment(env)
+      cmd = env.as_command_prefix
+      
+      cmd << "( cd '#{DIRECTORY}' ; "
+      
+      unless @erlang_path.empty?
+        cmd << "ERL_AFLAGS='-pa"
+        @erlang_path.each {|x| cmd << " \"#{x}\"" }
+        cmd << "' "
+      end
+      
+      cmd << "./bin/couchdb -b "
+      cmd << "-o '#{@log_directory}/couchdb.stdout' "
+      cmd << "-e '#{@log_directory}/couchdb.stderr' "
+      cmd << "-p '#{@local_directory}/pid' "
+      cmd << "-c './etc/couchdb/default.ini' "
+      cmd << "-c '#{@local_directory}/configuration.ini' "
+      cmd << " )"
+      
+      cmd
+    end
 
     def configuration
-      config = <<END_OF_STRING
-[couchdb]
-database_dir = #{@data_directory}
-
-[log]
-file = #{@log_directory}/couch.log
-level = debug
-END_OF_STRING
-  
-      config << "\n[external]\n"
-      @externals.each do |k,v|
-        config << "#{k} = #{v}\n"
+      config = ""
+      @configuration.each do |k,v|
+        config << "[#{k}]\n"
+        v.each do |k2,v2|
+          config << "#{k2} = #{v2}\n"
+        end
+        config << "\n"
       end
-
-      config << "\n[httpd_db_handlers]\n"
-      @externals.each do |k,v|
-        config << "_#{k} = {couch_httpd_external, handle_external_req, <<\"#{k}\">>}\n"
-      end
-
-      config << "\n"
-      
       config
     end
 
