@@ -16,6 +16,21 @@ task :build do
 	end
 end
 
+desc "Unpack all gems"
+task :unpack_modules do
+  Dir.chdir("#{Dir.pwd}/GEM_SERVER/gems") do
+    FileUtils.rm_rf('modules')
+    FileUtils.mkdir('modules')
+    Dir["*.gem"].each do |gem|
+      sh "gem unpack #{gem} --quiet --no-verbose"
+      dirname = File.basename(gem, '.gem')
+      gem_name = MODULES.find { |m| gem.match(/^memetic-#{m}/) }
+      canonical_name = gem_name ? ("memetic-#{gem_name}") : gem.gsub(/-([\d\.]+)\.gem$/, '')
+      FileUtils.mv(dirname, "modules/#{canonical_name}")
+    end
+  end
+end
+
 desc "Remove the test-db"
 task :remove_test_db  do
   sh 'rm -rf test-db'

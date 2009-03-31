@@ -1,28 +1,28 @@
 raise "I can't handle this platform: #{RUBY_PLATFORM}" unless RUBY_PLATFORM =~ /darwin|linux/
 
 
-file "lighttpd-1.4.20.tar.gz" => [] do
-  sh 'curl -O http://www.lighttpd.net/download/lighttpd-1.4.20.tar.gz'
+file "lighttpd-1.4.22.tar.gz" => [] do
+  sh 'curl -O http://www.lighttpd.net/download/lighttpd-1.4.22.tar.gz'
 end
 
-file "lighttpd-1.4.20" => [ "lighttpd-1.4.20.tar.gz" ] do |t|
-  sh 'tar zxf lighttpd-1.4.20.tar.gz'
+file "lighttpd-1.4.22" => [ "lighttpd-1.4.22.tar.gz" ] do |t|
+  sh 'tar zxf lighttpd-1.4.22.tar.gz'
 end
   
 desc "Clean up as though this were a fresh distribution"
 task :dist_clean => [ :clean ] do
-  sh 'rm js-1.7.0.tar.gz'
+  sh 'rm lighttpd-1.4.22.tar.gz'
 end
 
 desc "Clean everything"
 task :clean do |t|
-  sh 'rm -rf lighttpd-1.4.20 BUILD pkg'
+  sh 'rm -rf lighttpd-1.4.22 BUILD pkg'
 end
 
 directory "BUILD"
 
 desc "Build Lighttpd"
-task :build => [ "lighttpd-1.4.20", "BUILD", "../pcre/BUILD/bin" ] do |t|
+task :build => [ "lighttpd-1.4.22", "BUILD", "../pcre/BUILD/bin" ] do |t|
   env = "PATH=#{Dir.getwd}/../pcre/BUILD/bin:/usr/bin:/bin:/usr/sbin:/sbin ; "
   if RUBY_PLATFORM =~ /linux/
     env << "LD_LIBRARY_PATH='../pcre/BUILD/lib' ; "
@@ -30,7 +30,7 @@ task :build => [ "lighttpd-1.4.20", "BUILD", "../pcre/BUILD/bin" ] do |t|
     env << "DYLD_LIBRARY_PATH='../pcre/BUILD/lib' ; "
   end
   prefix = Dir.getwd + "/BUILD"
-  Dir.chdir('lighttpd-1.4.20')
+  Dir.chdir('lighttpd-1.4.22')
   begin
     sh "#{env} ./configure --prefix=#{prefix} --with-openssl"
     sh "#{env} make"
@@ -43,8 +43,8 @@ end
 require 'rake/gempackagetask'
 
 gem_spec = Gem::Specification.new do |s|
-  s.name         = 'memetic-lighttd'
-  s.version      = '1.4.20'
+  s.name         = 'memetic-lighttpd'
+  s.version      = '1.4.22'
   s.summary      = 'Memetic packaging of the Lighttpd'
   s.platform     = Gem::Platform::CURRENT
   s.authors      = ["Antony Blakey", "http://www.lighttpd.net"]

@@ -43,7 +43,7 @@ task :build => [ "otp_src_R12B-5", "BUILD" ] do |t|
   end
 
   # Now patch the built result to enable binary paths to be controlled by an environment variable
-  [ 'bin/erl', 'bin/start', 'erts-5.6.5/bin/erl', 'erts-5.6.5/bin/start', 'releases/RELEASES'].each do |f|
+  [ 'bin/erl', 'bin/start', 'erts-5.6.5/bin/erl', 'erts-5.6.5/bin/start', 'releases/RELEASES' ].each do |f|
     str = IO.read("BUILD/lib/erlang/#{f}")
     str.gsub!(prefix, "$ERLANG_ROOT")
     File.open("BUILD/lib/erlang/#{f}", "w") do |io|
@@ -74,7 +74,10 @@ end
 
 directory "../../GEM_SERVER/gems/"
 
+# See BUILD/lib/erlang/bin/epmd symlink vs. /BUILD/lib/erlang/erts-5.6.5/bin/epmd
+# you should copy the real file over.
+
 desc "Build the gem, move to ../../GEM_SERVER/gems/"
-task :default => [ :build, :gem, "../../GEM_SERVER/gems/"] do
+task :default => [ :build, :gem, "../../GEM_SERVER/gems/" ] do
   sh "mv pkg/*.gem ../../GEM_SERVER/gems/"
 end

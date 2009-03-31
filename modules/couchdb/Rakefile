@@ -85,7 +85,7 @@ require 'rake/gempackagetask'
 
 gem_spec = Gem::Specification.new do |s|
   s.name         = 'memetic-couchdb'
-  s.version      = "0.8.#{Time.new.strftime('%Y%m%d')}"
+  s.version      = "0.9.#{Time.new.strftime('%Y%m%d')}"
   s.summary      = 'Memetic packaging of Couchdb'
   s.platform     = Gem::Platform::CURRENT
   s.authors      = ["Antony Blakey", "http://couchdb.org"]
